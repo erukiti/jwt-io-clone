@@ -1,56 +1,77 @@
 import React, { useState, useEffect } from "react";
 
-import { createVerifierFromJwk } from "./jwt";
+import { createFromJwk, createHmac } from "./jwt";
 
 export default function App() {
   const [jwt, setJwt] = useState("");
-  const [jwk, setJwk] = useState("");
+  const [key, setKey] = useState("");
   const [header, setHeader] = useState<any>({});
   const [claim, setClaim] = useState<any>({});
   const [verified, setVerified] = useState(false);
+  const [isHmac, setIsHmac] = useState(false);
 
   useEffect(() => {
     const proc = async () => {
-      if (!jwt || !jwk) {
+      if (!jwt || !key) {
         return;
       }
 
-      console.log(jwk);;
-      const extractAndVerifyJwt = await createVerifierFromJwk(JSON.parse(jwk));
-
+      console.log(jwt, key);
       try {
-        const res = extractAndVerifyJwt(jwt);
-        setHeader(res.header);
-        setClaim(res.claim);
+        if (isHmac) {
+          const extractAndVerifyJwt = await createHmac(key);
+          const res = extractAndVerifyJwt(jwt);
+          setHeader(res.header);
+          setClaim(res.claim);
 
-        const ok = await res.verifyDigitalSign();
-        setVerified(ok);
+          const ok = await res.verifyDigitalSign();
+          setVerified(ok);
+          console.log(29);;
+        } else {
+          const extractAndVerifyJwt = await createFromJwk(JSON.parse(key));
+
+          const res = extractAndVerifyJwt(jwt);
+          setHeader(res.header);
+          setClaim(res.claim);
+
+          const ok = await res.verifyDigitalSign();
+          setVerified(ok);
+        }
       } catch (e) {
         console.error(e);
       }
     };
     proc();
-  }, [jwt, jwk]);
+  }, [jwt, key, isHmac]);
 
   const handleChangeJwt = (ev: React.ChangeEvent<HTMLTextAreaElement>) => {
     setJwt(ev.target.value);
   };
   const handleChangeJwk = (ev: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setJwk(ev.target.value);
+    setKey(ev.target.value);
   };
   return (
     <div className="grid grid-cols-2 p-5">
       <div>
+        <div>
+          <input
+            type="checkbox"
+            id="hmac"
+            checked={isHmac}
+            onChange={() => setIsHmac((prev) => !prev)}
+          />
+          <label htmlFor="hmac">HMAC</label>
+        </div>
         <div>Encoded</div>
         <textarea
           className="border-gray-300 border-2 p-2 rounded-lg w-full h-48"
           value={jwt}
           onChange={handleChangeJwt}
         />
-        <div>JWK</div>
+        <div>{isHmac ? "secret" : "JWK"}</div>
         <textarea
           className="border-gray-300 border-2 p-2 rounded-lg w-full h-56"
-          value={jwk}
+          value={key}
           onChange={handleChangeJwk}
         />
       </div>

@@ -1,6 +1,22 @@
+const fromArrayBuffer = (buf: ArrayBuffer) => {
+  let res = "";
+  const bufUint8 = new Uint8Array(buf);
+  for (let i = 0; i < bufUint8.length; i++) {
+    res += String.fromCharCode(bufUint8[i]);
+  }
+  return res;
+};
+
+
 const decodeBase64Url = (text: string) => {
   return atob(text.replace(/-/g, "+").replace(/_/g, "/"));
 };
+
+/*
+const encodeBase64Url = (buf: ArrayBuffer) => {
+  return btoa(fromArrayBuffer(buf)).replace(/\+/g, "-").replace(/\//g, "_");
+};
+*/
 
 const toArrayBuffer = (text: string) => {
   const buf = new ArrayBuffer(text.length);
@@ -10,6 +26,7 @@ const toArrayBuffer = (text: string) => {
   }
   return buf;
 };
+
 
 export const extract = (jwt: string) => {
   const [headerEncoded, claimEncoded, signatureEncoded] = jwt.split(".");
@@ -63,16 +80,7 @@ const ALGORITHMS = {
   },
 } as const;
 
-export const verifyDigitalSign = async (
-  algorithmParam: EcdsaParams | RsaPssParams,
-  payload: ArrayBuffer,
-  signature: ArrayBuffer,
-  publicKey: CryptoKey
-): Promise<boolean> => {
-  return crypto.subtle.verify(algorithmParam, publicKey, signature, payload);
-};
-
-export const createVerifierFromJwk = async (jwk: JsonWebKey) => {
+export const createFromJwk = async (jwk: JsonWebKey) => {
   const publicKey = await createCryptoKeyFromJwk(jwk);
   if (!jwk.alg || !Object.keys(ALGORITHMS).includes(jwk.alg)) {
     throw new Error(`unknown algorithm: ${jwk.alg}`);
@@ -83,8 +91,41 @@ export const createVerifierFromJwk = async (jwk: JsonWebKey) => {
     return {
       header,
       claim,
-      verifyDigitalSign: () =>
-        verifyDigitalSign(algorithmParam, payload, signature, publicKey),
+      verifyDigitalSign: async () =>
+        crypto.subtle.verify(algorithmParam, publicKey, signature, payload),
+    };
+  };
+};
+
+export const createHmac = async (secret: string) => {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    toArrayBuffer(secret),
+    {
+      name: "HMAC",
+      hash: { name: "SHA-256" },
+    },
+    false,
+    ["sign"]
+  );
+
+  return (jwt: string) => {
+    const { header, claim, payload, signature } = extract(jwt);
+    return {
+      header,
+      claim,
+      verifyDigitalSign: async () => {
+        const signed = await crypto.subtle.sign(
+          {
+            name: "HMAC",
+            hash: { name: "SHA-256" },
+          },
+          key,
+          payload
+        );
+
+        return fromArrayBuffer(signature) === fromArrayBuffer(signed);
+      },
     };
   };
 };
