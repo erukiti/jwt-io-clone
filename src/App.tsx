@@ -43,13 +43,13 @@ export default function App() {
       <div>
         <div>Encoded</div>
         <textarea
-          className="border-gray-700 border-2 p-2 rounded-lg w-full h-48"
+          className="border-gray-300 border-2 p-2 rounded-lg w-full h-48"
           value={jwt}
           onChange={handleChangeJwt}
         />
         <div>JWK</div>
         <textarea
-          className="border-gray-700 border-2 p-2 rounded-lg w-full h-56"
+          className="border-gray-300 border-2 p-2 rounded-lg w-full h-56"
           value={jwk}
           onChange={handleChangeJwk}
         />

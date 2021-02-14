@@ -30,66 +30,38 @@ export const extract = (jwt: string) => {
   };
 };
 
-/*
-const createCryptoKeyFromPem = (armored: string) => {
-  const pemHeader = "-----BEGIN PUBLIC KEY-----";
-  const pemFooter = "-----END PUBLIC KEY-----";
-  const pemContents = armored.substring(
-    pemHeader.length,
-    armored.length - pemFooter.length
-  );
-
-  const binary = atob(
-    // armored
-    //   .trim()
-    //   .replace(/^-----BEGIN [A-Z]+ KEY-----/, "")
-    //   .replace(/^-----END [A-Z]+ KEY$/, "")
-    pemContents
-  );
-  return crypto.subtle.importKey(
-    "spki",
-    toArrayBuffer(binary),
-    {
-      name: "ECDSA",
-      namedCurve: "P-256",
-      hash: "SHA-256",
-    },
-    false,
-    ["verify"]
-  );
-};
-*/
-
 export const createCryptoKeyFromJwk = (jwk: any) => {
-  // switch (jwk.kty) {
-  // case "ec": {
-  return crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    {
-      name: "ECDSA",
-      namedCurve: jwk.crv,
-      hash: {
-        name: "SHA-256",
-      },
-    },
-    false,
-    ["verify"]
-  );
-  // }
-  // }
+  const shaSize = jwk.alg.replace(/S(\d+)$/, "$1");
+  switch (jwk.kty.toUpperCase()) {
+    case "EC": {
+      return crypto.subtle.importKey(
+        "jwk",
+        jwk,
+        {
+          name: "ECDSA",
+          namedCurve: jwk.crv,
+          hash: {
+            name: `SHA-${shaSize}`,
+          },
+        },
+        false,
+        ["verify"]
+      );
+    }
+  }
+  throw new Error(`unknown kty ${JSON.stringify(jwk)}`);
 };
 
-// const Algorithms = {
-//   ES256: {
-//     name: "ECDSA",
-//     hash: { name: "SHA-256" },
-//   },
-//   ES512: {
-//     name: "ECDSA",
-//     hash: { name: "SHA-512" },
-//   },
-// } as const;
+const ALGORITHMS = {
+  ES256: {
+    name: "ECDSA",
+    hash: { name: "SHA-256" },
+  },
+  ES512: {
+    name: "ECDSA",
+    hash: { name: "SHA-512" },
+  },
+} as const;
 
 export const verifyDigitalSign = async (
   algorithmParam: EcdsaParams | RsaPssParams,
@@ -102,13 +74,11 @@ export const verifyDigitalSign = async (
 
 export const createVerifierFromJwk = async (jwk: JsonWebKey) => {
   const publicKey = await createCryptoKeyFromJwk(jwk);
+  if (!jwk.alg || !Object.keys(ALGORITHMS).includes(jwk.alg)) {
+    throw new Error(`unknown algorithm: ${jwk.alg}`);
+  }
+  const algorithmParam = ALGORITHMS[jwk.alg as keyof typeof ALGORITHMS];
   return (jwt: string) => {
-    const algorithmParam = {
-      name: "ECDSA",
-      hash: {
-        name: "SHA-256",
-      },
-    };
     const { header, claim, payload, signature } = extract(jwt);
     return {
       header,
